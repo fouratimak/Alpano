@@ -57,10 +57,12 @@ import javafx.util.StringConverter;
 public final class Alpano extends Application {
 	private PanoramaParametersBean parametersBean = new PanoramaParametersBean(PredefinedPanoramas.ALPES_DU_JURA);
 	private PanoramaComputerBean computerBean;
+	private ImageView panoZoom;
 
 	final static int TO_KLM = 1000;
 	final static int FRAME_SIZE = 80;
-	private static final int ZOOM_SCALE = 4;
+	private  int zoomScale = 4;
+	
 
 	public static void main(String[] args) {
 		Application.launch(args);
@@ -75,10 +77,11 @@ public final class Alpano extends Application {
 		ContinuousElevationModel cDEM = new ContinuousElevationModel(demLoader());
 		computerBean = new PanoramaComputerBean(cDEM, summits);
 		Pane labelsPane = labelsPane();
-
+		//creating the observer's button
 		Button observerPositionButton = new Button("observer\n position");
 		observerPositionButton.setOnMouseClicked(buttonEvent -> {
-
+		    
+		    
 			String longitude = String.format((Locale) null, "%.4f",
 					parametersBean.observerLongitudeProperty().get() / 10000d);
 			String latitude = String.format((Locale) null, "%.4f",
@@ -88,9 +91,9 @@ public final class Alpano extends Application {
 			try {
 				URI osmURI = new URI("http", "www.openstreetmap.org", "/", qy, fg);
 				java.awt.Desktop.getDesktop().browse(osmURI);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+			}  catch (URISyntaxException | IOException e) {
+                throw new Error(e);
+            }
 		});
 
 		TextArea mousePosition = new TextArea();
@@ -98,18 +101,9 @@ public final class Alpano extends Application {
 		mousePosition.setPrefRowCount(2);
 
 		// creating a zoom for the mouse
-		ImageView panoZoom = new ImageView();
-		panoZoom.setSmooth(true);
-		panoZoom.setFitWidth(FRAME_SIZE);
-		panoZoom.setFitHeight(FRAME_SIZE);
-		panoZoom.setMouseTransparent(true);
-		panoZoom.setManaged(false);
-		panoZoom.imageProperty().bind(computerBean.imageProperty());
-		panoZoom.setVisible(false);
-		panoZoom.setClip(null);
-		panoZoom.setEffect(new DropShadow(10, Color.BLACK));
-
-		ImageView panoView = panoView(mousePosition, panoZoom);
+		panoZoom =panoZoom();
+		
+		ImageView panoView = panoView(mousePosition);
 
 		// creating a gridPane
 		GridPane paramsGrid = paramsGrid();
@@ -130,7 +124,7 @@ public final class Alpano extends Application {
 
 		primaryStage.setTitle("Alpano");
 		primaryStage.setScene(scene);
-		primaryStage.setFullScreen(true);
+		 primaryStage.setFullScreen(true);
 		primaryStage.show();
 	}
 
@@ -178,6 +172,8 @@ public final class Alpano extends Application {
 		updateNotice.setOnMouseClicked(event -> {
 			PanoramaUserParameters parameters = parametersBean.parametersProperty().get();
 			computerBean.setParameters(parameters);
+			panoZoom.setVisible(false);
+	        
 		});
 
 		return updateNotice;
@@ -186,6 +182,18 @@ public final class Alpano extends Application {
 	/**
 	 * @return the parameters grid
 	 */
+	private ImageView panoZoom(){
+	   ImageView panoZoom = new ImageView();
+        panoZoom.setFitWidth(FRAME_SIZE);
+        panoZoom.setFitHeight(FRAME_SIZE);
+        panoZoom.setMouseTransparent(true);
+        panoZoom.setManaged(false);
+        panoZoom.imageProperty().bind(computerBean.imageProperty());
+        panoZoom.setVisible(false);
+        panoZoom.setClip(null);
+        panoZoom.setEffect(new DropShadow(10, Color.BLACK));
+return panoZoom;
+	}
 	private GridPane paramsGrid() {
 		StringConverter<Integer> fourDecimal = new FixedPointStringConverter(4);
 		StringConverter<Integer> zeroDecimal = new FixedPointStringConverter(0);
@@ -228,7 +236,7 @@ public final class Alpano extends Application {
 		StringConverter<Integer> listConverter = new LabeledListStringConverter("non", "2x", "4x");
 		superSamplingExponentF.valueProperty().bindBidirectional(parametersBean.superSamplingExponentProperty());
 		superSamplingExponentF.setConverter(listConverter);
-
+	
 		GridPane paramsGrid = new GridPane();
 		paramsGrid.setAlignment(Pos.CENTER);
 		paramsGrid.setHgap(10);
@@ -281,15 +289,13 @@ public final class Alpano extends Application {
 	 * @param mousePosition
 	 * @return the panorama view from the computer bean
 	 */
-	private ImageView panoView(TextArea mousePosition, ImageView panoZoom) {
+	private ImageView panoView(TextArea mousePosition) {
 		ImageView panoView = new ImageView();
 		panoView.fitWidthProperty().bind(parametersBean.widthProperty());
 		panoView.imageProperty().bind(computerBean.imageProperty());
 		panoView.setPreserveRatio(true);
 		panoView.setSmooth(true);
 		panoView.setMouseTransparent(false);
-
-		// convertir le curseur en position
 
 		// Mouse moving event
 		panoView.setOnMouseMoved(mouseEvent -> {
@@ -309,8 +315,7 @@ public final class Alpano extends Application {
 					+ String.format((Locale) null, "%.1f", toDegrees(azimuth)) + "° ("
 					+ Azimuth.toOctantString(azimuth, "N", "E", "S", "W") + ")        Elevation: "
 					+ String.format((Locale) null, "%.1f", +(toDegrees(parameters.altitudeForY(y)))) + "°");
-			Rectangle2D viewportRect = new Rectangle2D(x - FRAME_SIZE / (ZOOM_SCALE * 2),
-					y - FRAME_SIZE / (ZOOM_SCALE * 2), FRAME_SIZE / ZOOM_SCALE, FRAME_SIZE / ZOOM_SCALE);
+			Rectangle2D viewportRect = new Rectangle2D(x - FRAME_SIZE/(zoomScale*2), y - FRAME_SIZE/(zoomScale*2), FRAME_SIZE/zoomScale, FRAME_SIZE/zoomScale);
 			panoZoom.setVisible(true);
 			panoZoom.setViewport(viewportRect);
 			panoZoom.relocate(mouseEvent.getX() - FRAME_SIZE, mouseEvent.getY() - FRAME_SIZE);
